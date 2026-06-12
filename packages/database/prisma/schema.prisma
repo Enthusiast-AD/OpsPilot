@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  tasks     Task[]
+  users     User[]
+}
+
+model User {
+  id             String       @id @default(uuid())
+  email          String       @unique
+  password       String
+  role           ROLE         @default(USER)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organizationId String
+  tasks          Task[]
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model Task {
+  id             String          @id @default(uuid())
+  title          String
+  description    String
+  status         TASK_STATUS     @default(PENDING)
+  userId         String?
+  organizationId String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  attachments    Attachment[]
+  checkListItems CheckListItem[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  user           User?           @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model CheckListItem {
+  id          String   @id @default(uuid())
+  content     String
+  isCompleted Boolean  @default(false)
+  taskId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        Task     @relation(fields: [taskId], references: [id])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  fileName  String
+  fileType  String
+  fileSize  Int
+  fileUrl   String
+  taskId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  task      Task     @relation(fields: [taskId], references: [id])
+}
+
+enum ROLE {
+  ADMIN
+  USER
+}
+
+enum TASK_STATUS {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  ESCALATED
+}
+
+enum SYNC_STATUS {
+  PENDING
+  SYNCED
+  FAILED
+}
