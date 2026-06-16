@@ -13,7 +13,7 @@ export const authCrypto = {
     return bcrypt.compare(password, hash);
   },
 
-  generateToken: (payload: { userId: string; email: string; role: string; organizationId: string }): string => {
+  generateToken: (payload: { userId: string; email: string; role: "SUPERVISOR" | "WORKER"; organizationId: string }): string => {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
   },
 
@@ -22,7 +22,7 @@ export const authCrypto = {
       return jwt.verify(token, JWT_SECRET) as {
         userId: string;
         email: string;
-        role: string;
+        role: "SUPERVISOR" | "WORKER";
         organizationId: string;
       };
     } catch (error) {
