@@ -2,10 +2,20 @@
   "name": "@opspilot/database",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.ts",
   "type": "module",
+  "exports":{
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
+    "studio": "prisma studio",
+    "check-types": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
