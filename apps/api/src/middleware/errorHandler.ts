@@ -1,6 +1,7 @@
 import type {Request, Response, NextFunction} from 'express';
 import {ZodError} from 'zod';
-import ApiError from '../utils/ApiError.js';
+import {ApiError} from '../utils/ApiError.js';
+import {normalizeError} from '../utils/normalizeError.js';
 
 export const globalErrorHandler = (
     err: any,
@@ -8,6 +9,9 @@ export const globalErrorHandler = (
     res: Response,
     next: NextFunction
 ) => {
+
+    err = normalizeError(err); // Normalize the error to ensure consistent handling
+
     console.error("Api Error", err);
 
     // Handle custom ApiError instances
@@ -16,7 +20,7 @@ export const globalErrorHandler = (
             data: null,
             error: {
                 message: err.message,
-                code: "API_ERROR",
+                code: err.code || "API_ERROR",
             }
         });
     }
@@ -29,18 +33,6 @@ export const globalErrorHandler = (
                 message: "Validation Failed",
                 code: "VALIDATION_ERROR",
                 details: err.issues,
-            }
-        });
-    }
-
-    // Handle Prisma errors
-    if (err.code && err.code.startsWith('P')) {
-        return res.status(400).json({
-            data: null,
-            error: {
-                message: "Database Error",
-                code: err.code,
-                details: err.meta || null,
             }
         });
     }
