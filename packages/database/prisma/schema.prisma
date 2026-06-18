@@ -7,6 +7,136 @@ datasource db {
   provider = "postgresql"
 }
 
+model Organization {
+  id        String     @id @default(uuid())
+  name      String
+  createdAt DateTime   @default(now())
+  documents Document[]
+  tasks     Task[]
+  users     User[]
+}
+
+model User {
+  id                  String       @id @default(uuid())
+  email               String       @unique
+  password            String
+  role                ROLE         @default(WORKER)
+  organizationId      String
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  name                String
+  aiChats             AiChat[]
+  resolvedEscalations Escalation[] @relation("SupervisorResolver")
+  assignedTasks       Task[]       @relation("AssignedWorker")
+  organization        Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+}
+
+model Task {
+  id             String          @id @default(uuid())
+  title          String
+  description    String
+  status         TASK_STATUS     @default(PENDING)
+  organizationId String
+  userId         String?
+  version        Int             @default(1)
+  isDeleted      Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  attachments    Attachment[]
+  checkListItems CheckListItem[]
+  escalations    Escalation[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  user           User?           @relation("AssignedWorker", fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model CheckListItem {
+  id          String   @id @default(uuid())
+  taskId      String
+  content     String
+  isCompleted Boolean  @default(false)
+  version     Int      @default(1)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  taskId    String
+  fileName  String
+  fileType  String
+  fileSize  Int
+  fileUrl   String
+  isSynced  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+}
+
+model Document {
+  id             String          @id @default(uuid())
+  title          String
+  fileUrl        String
+  organizationId String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  chunks         DocumentChunk[]
+
+  @@index([organizationId])
+}
+
+model DocumentChunk {
+  id         String                 @id @default(uuid())
+  documentId String
+  content    String
+  embedding  Unsupported("vector")?
+  document   Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model AiChat {
+  id         String      @id @default(uuid())
+  userId     String
+  question   String
+  answer     String
+  confidence Float
+  createdAt  DateTime    @default(now())
+  user       User        @relation(fields: [userId], references: [id])
+  escalation Escalation?
+
+  @@index([userId])
+}
+
+model Escalation {
+  id              String            @id @default(uuid())
+  taskId          String
+  aiChatId        String?           @unique
+  status          ESCALATION_STATUS @default(OPEN)
+  reason          String
+  supervisorNotes String?
+  resolvedById    String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  aiChat          AiChat?           @relation(fields: [aiChatId], references: [id])
+  resolvedBy      User?             @relation("SupervisorResolver", fields: [resolvedById], references: [id])
+  task            Task              @relation(fields: [taskId], references: [id])
+
+  @@index([taskId])
+  @@index([resolvedById])
+}
+
 enum ROLE {
   SUPERVISOR
   WORKER
@@ -23,150 +153,4 @@ enum ESCALATION_STATUS {
   OPEN
   IN_REVIEW
   RESOLVED
-}
-
-model Organization {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-
-  users     User[]
-  tasks     Task[]
-  documents Document[]
-}
-
-model User {
-  id             String       @id @default(uuid())
-  email          String       @unique
-  password       String
-  role           ROLE         @default(WORKER)
-  organizationId String
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  assignedTasks  Task[]       @relation("AssignedWorker")
-  resolvedEscalations Escalation[] @relation("SupervisorResolver")
-  aiChats        AiChat[]
-
-  @@index([organizationId])
-}
-
-model Task {
-  id             String          @id @default(uuid()) 
-  title          String
-  description    String
-  status         TASK_STATUS     @default(PENDING)
-  organizationId String
-  userId         String?         // Assigned worker
-  
-
-  version        Int             @default(1) // For optimistic concurrency control during sync
-  isDeleted      Boolean         @default(false) // Soft delete flag for offline sync
-  
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  user           User?           @relation("AssignedWorker", fields: [userId], references: [id])
-  checkListItems CheckListItem[]
-  attachments    Attachment[]
-  escalations    Escalation[]
-
-  @@index([organizationId])
-  @@index([userId])
-}
-
-model CheckListItem {
-  id          String   @id @default(uuid())
-  taskId      String
-  content     String
-  isCompleted Boolean  @default(false)
-  
-
-  version     Int      @default(1) // For optimistic concurrency control during sync
-  isDeleted   Boolean  @default(false) // Soft delete flag for offline sync
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([taskId])
-}
-
-model Attachment {
-  id        String   @id @default(uuid()) 
-  taskId    String
-  fileName  String
-  fileType  String
-  fileSize  Int
-  fileUrl   String   // Can be local filepath when offline, updated to S3 url on sync
-  isSynced  Boolean  @default(false) 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  @@index([taskId])
-}
-
-model Document {
-  id             String          @id @default(uuid())
-  title          String
-  fileUrl        String
-  organizationId String
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  chunks         DocumentChunk[]
-
-  @@index([organizationId])
-}
-
-model DocumentChunk {
-  id         String                    @id @default(uuid())
-  documentId String
-  content    String                    
-  
-  
-  embedding  Unsupported("vector(1536)")?  
-
-  document   Document                  @relation(fields: [documentId], references: [id], onDelete: Cascade)
-
-  @@index([documentId])
-}
-
-model AiChat {
-  id             String       @id @default(uuid())
-  userId         String
-  question       String
-  answer         String
-  confidence     Float        // To flag low confidence answers for escalation
-  createdAt      DateTime     @default(now())
-
-  user           User         @relation(fields: [userId], references: [id])
-  escalation     Escalation?
-
-  @@index([userId])
-}
-
-model Escalation {
-  id             String            @id @default(uuid())
-  taskId         String
-  aiChatId       String?           @unique // The exact chat interaction that triggered this
-  status         ESCALATION_STATUS @default(OPEN)
-  reason         String            // "AI Low Confidence" or "Worker Requested"
-  supervisorNotes String?
-  resolvedById   String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-
-  task           Task              @relation(fields: [taskId], references: [id])
-  aiChat         AiChat?           @relation(fields: [aiChatId], references: [id])
-  resolvedBy     User?             @relation("SupervisorResolver", fields: [resolvedById], references: [id])
-
-  @@index([taskId])
-  @@index([resolvedById])
 }
