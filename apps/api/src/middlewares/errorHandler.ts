@@ -30,7 +30,7 @@ export const globalErrorHandler = (
         return res.status(400).json({
             data: null,
             error: {
-                message: "Validation Failed",
+                message: err.issues[0]?.message || "Validation error",
                 code: "VALIDATION_ERROR",
                 details: err.issues,
             }

@@ -12,7 +12,7 @@ export const requireAuth = asyncHandler(async (req: Request, res: Response, next
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = authCrypto.verifyToken(token);
+    const decoded = authCrypto.verifyToken(token!);
 
     if (!decoded) {
         return next(new ApiError(401, 'Unauthorized: Invalid token', 'UNAUTHORIZED'));
