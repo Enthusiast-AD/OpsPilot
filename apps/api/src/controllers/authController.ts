@@ -8,7 +8,7 @@ import {type SignUpInput, type LoginInput, signUpSchema, loginSchema} from '@ops
 
 export const handleSignUp = asyncHandler(async(req:Request,res:Response)=>{
     const {email,password,organizationName,name} = signUpSchema.parse(req.body);
-    const emailNormalized = email.trim().toLowerCase();
+
     const hashedPassword = await authCrypto.hashPassword(password); 
 
     // using a transaction to ensure that the user creation and organization creation are atomic
@@ -26,7 +26,7 @@ export const handleSignUp = asyncHandler(async(req:Request,res:Response)=>{
         // create the user
         const newUser = await tx.user.create({
             data:{
-                email:emailNormalized,
+                email,
                 password:hashedPassword,
                 role:'SUPERVISOR', // default role for the first user in the organization
                 name,
@@ -60,7 +60,7 @@ export const handleLogin = asyncHandler(async(req:Request,res:Response)=>{
 
     const user = await prisma.user.findUnique({
         where:{ 
-            email:email.trim().toLowerCase()
+            email
         }
     })
 
