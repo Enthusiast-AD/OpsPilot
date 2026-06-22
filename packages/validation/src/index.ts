@@ -4,3 +4,4 @@ export * from "./user/createWorker.js";
 export * from "./task/createTask.js";
 export * from "./task/updateTask.js";
 export * from "./task/escalateTask.js";
+export * from "./sync/sync.js";
