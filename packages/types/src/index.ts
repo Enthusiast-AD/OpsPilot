@@ -1,3 +1,2 @@
-import { User } from "./User";
-
-export type { User };
+export * from './User'
+export * from './sync';
