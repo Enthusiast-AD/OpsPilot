@@ -6,3 +6,4 @@ export * from "./task/updateTask.js";
 export * from "./task/escalateTask.js";
 export * from "./sync/sync.js";
 export * from "./attachement/attachement.js";
+export * from "./escalation/escalation.js";
