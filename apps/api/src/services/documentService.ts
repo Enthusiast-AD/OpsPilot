@@ -1,6 +1,7 @@
 import {BlobServiceClient, BlobSASPermissions} from '@azure/storage-blob';
 import {prisma} from '@opspilot/database';
 import crypto from 'crypto';
+import { processDocumentToVectors } from '@opspilot/ai';
 
 const CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING;
 if(!CONNECTION_STRING) {
@@ -11,6 +12,22 @@ const containerName = 'opspilot-knowledge-base';
 const blobServiceClient = BlobServiceClient.fromConnectionString(CONNECTION_STRING);
 const containerClient = blobServiceClient.getContainerClient(containerName);
 
+/**
+ * Node.js Stream Helper: Converts Azure's readable web stream body into a physical 
+ * binary buffer so libraries like pdf-parse can process it in memory.
+ */
+async function streamToBuffer(readableStream: NodeJS.ReadableStream): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        readableStream.on('data', (data) => {
+            chunks.push(data instanceof Buffer ? data : Buffer.from(data));
+        });
+        readableStream.on('end', () => {
+            resolve(Buffer.concat(chunks));
+        });
+        readableStream.on('error', reject);
+    });
+}
 
 // Generates a SAS token for uploading a document to Azure Blob Storage
 export async function generateDocumentUploadUrl(organizationId: string, fileName: string, fileType: string){
@@ -57,7 +74,7 @@ export async function verifyAndIngestDocument(organizationId: string, storageKey
     // BACKGROUND AI PIPE HOOK:
     // Fire-and-forget or push to a background job queue to convert PDF -> Text Chunks -> Vector Embeddings
     // We wrap this safely to ensure that if chunking fails, the uploaded document doesn't crash the request
-    processDocumentEmbeddings(document.id, storageKey).catch((err) => {
+    processDocumentEmbeddings(document.id, storageKey, fileType).catch((err) => {
         console.error('Error processing document embeddings:', err);
     });
 
@@ -77,7 +94,7 @@ export async function removeDocument(organizationId: string, documentId: string)
         throw new Error('Document not found or does not belong to the organization.');
     }
 
-    const urlParts = document.fileUrl.split('/${CONTAINER_NAME}/');
+    const urlParts = document.fileUrl.split(`/${containerName}/`);
     const storageKey = decodeURIComponent(urlParts[1]!);
     const blockBlobClient = containerClient.getBlockBlobClient(storageKey);
     
@@ -90,13 +107,19 @@ export async function removeDocument(organizationId: string, documentId: string)
     });
 }
 
-// Placeholder for the background processing function
-async function processDocumentEmbeddings(documentId: string, storageKey: string): Promise<void> {
-  // Implement the logic to process the document for embeddings
-  // Later implementation steps:
-  // 1. Stream the file from Azure Storage
-  // 2. Parse text lines (e.g., pdf-parse)
-  // 3. Section text into 500-character windows
-  // 4. Pass windows to OpenAI Embedding API (`text-embedding-3-small`)
-  // 5. Write records into DocumentChunk table using raw SQL blocks or supported extensions
+// BACKGROUND PROCESSOR: Runs completely asynchronously outside the main HTTP thread cycle.
+async function processDocumentEmbeddings(documentId: string, storageKey: string, fileType: string): Promise<void> {
+    const blockBlobClient = containerClient.getBlockBlobClient(storageKey);
+
+    const downloadResponse = await blockBlobClient.download();
+
+    if (!downloadResponse.readableStreamBody) {
+        throw new Error(`Failed to initialize download stream channel for cloud key: ${storageKey}`);
+    }
+
+    const fileBuffer = await streamToBuffer(downloadResponse.readableStreamBody);
+
+    await processDocumentToVectors(documentId, fileBuffer, fileType);
+
+    console.log(`🚀 AI Ingestion Complete: Document [${documentId}] successfully chunked, vectorized, and stored.`);
 }
